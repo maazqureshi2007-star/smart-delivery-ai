@@ -5,49 +5,28 @@ import math
 
 app = FastAPI()
 
-# -----------------------------
-# DATA MODELS
-# -----------------------------
 class ResetRequest(BaseModel):
-    locations: List[List[float]]  # [[lat, lon], ...]
+    locations: List[List[float]]
 
 class StepRequest(BaseModel):
     current_index: int
     visited: List[int]
 
-# -----------------------------
-# GLOBAL STATE (simple env)
-# -----------------------------
 env = {
-    "locations": [],
-    "visited": [],
-    "current_index": 0
+    "locations": []
 }
 
-# -----------------------------
-# RESET ENDPOINT
-# -----------------------------
 @app.post("/openenv/reset")
 def reset_env(req: ResetRequest):
     env["locations"] = req.locations
-    env["visited"] = []
-    env["current_index"] = 0
+    return {"status": "reset successful"}
 
-    return {
-        "status": "reset successful",
-        "num_locations": len(req.locations)
-    }
-
-# -----------------------------
-# STEP (AI decision)
-# -----------------------------
 @app.post("/openenv/step")
 def step(req: StepRequest):
     locations = env["locations"]
     visited = set(req.visited)
 
     current = req.current_index
-
     best = None
     best_dist = float("inf")
 
@@ -64,17 +43,8 @@ def step(req: StepRequest):
             best_dist = dist
             best = i
 
-    return {
-        "next_index": best,
-        "distance": best_dist
-    }
+    return {"next_index": best}
 
-# -----------------------------
-# VALIDATE
-# -----------------------------
 @app.post("/openenv/validate")
 def validate():
-    return {
-        "status": "valid",
-        "message": "Environment working correctly"
-    }
+    return {"status": "ok"}
