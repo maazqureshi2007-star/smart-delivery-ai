@@ -1,0 +1,12 @@
+name: delivery_optimizer
+description: Smart Delivery Route Optimization Environment
+
+endpoints:
+  reset: /reset
+  step: /step
+  state: /state
+
+tasks:
+  - easy
+  - medium
+  - hard
