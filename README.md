@@ -1,10 +1,12 @@
 ---
-title: Smart Delivery Ai
-emoji: 💻
-colorFrom: red
-colorTo: yellow
+title: Smart Delivery AI
+emoji: 🚀
+colorFrom: blue
+colorTo: green
 sdk: docker
+app_file: inference.py
 pinned: false
 ---
 
-Check out the configuration reference at https://huggingface.co/docs/hub/spaces-config-reference
+# Smart Delivery AI
+Route optimization system using FastAPI.
