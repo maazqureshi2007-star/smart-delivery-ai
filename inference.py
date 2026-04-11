@@ -5,6 +5,8 @@ import math
 
 app = FastAPI()
 
+# ------------------ MODELS ------------------
+
 class ResetRequest(BaseModel):
     locations: List[List[float]]
 
@@ -12,22 +14,37 @@ class StepRequest(BaseModel):
     current_index: int
     visited: List[int]
 
+# ------------------ MEMORY ------------------
+
 env = {
     "locations": []
 }
+
+# ------------------ RESET ------------------
 
 @app.post("/openenv/reset")
 def reset_env(req: ResetRequest):
     env["locations"] = req.locations
     return {"status": "ok"}
 
+# ------------------ STEP ------------------
+
 @app.post("/openenv/step")
 def step(req: StepRequest):
-    locations = env["locations"]
-    visited = set(req.visited)
+    locations = env.get("locations", [])
 
+    # SAFETY: empty locations
+    if not locations:
+        return {"next_index": 0}
+
+    # SAFETY: invalid current index
+    if req.current_index >= len(locations):
+        return {"next_index": 0}
+
+    visited = set(req.visited)
     current = req.current_index
-    best = None
+
+    best = current
     best_dist = float("inf")
 
     for i, loc in enumerate(locations):
@@ -45,9 +62,13 @@ def step(req: StepRequest):
 
     return {"next_index": best}
 
+# ------------------ VALIDATE ------------------
+
 @app.post("/openenv/validate")
 def validate():
     return {"status": "ok"}
+
+# ------------------ ROOT ------------------
 
 @app.get("/")
 def home():

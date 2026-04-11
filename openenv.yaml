@@ -1,22 +1,14 @@
 name: delivery_optimizer
 description: Smart Delivery Route Optimization Environment
 
+version: "1.0"
+
 endpoints:
-  reset: /reset
-  step: /step
-  state: /state
+  reset: /openenv/reset
+  step: /openenv/step
+  validate: /openenv/validate
 
 tasks:
   - easy
   - medium
   - hard
-
-openapi: 3.0.0
-info:
-  title: Smart Delivery AI
-  version: 1.0.0
-
-paths:
-  /openenv/reset:
-    post:
-      summary: Reset environment
