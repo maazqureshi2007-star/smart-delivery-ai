@@ -9,4 +9,5 @@ pinned: false
 ---
 
 # Smart Delivery AI
-Route optimization system using FastAPI.
+
+FastAPI-based route optimization system.
