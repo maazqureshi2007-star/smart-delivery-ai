@@ -10,3 +10,13 @@ tasks:
   - easy
   - medium
   - hard
+
+openapi: 3.0.0
+info:
+  title: Smart Delivery AI
+  version: 1.0.0
+
+paths:
+  /openenv/reset:
+    post:
+      summary: Reset environment

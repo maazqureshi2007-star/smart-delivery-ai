@@ -19,7 +19,7 @@ env = {
 @app.post("/openenv/reset")
 def reset_env(req: ResetRequest):
     env["locations"] = req.locations
-    return {"status": "reset successful"}
+    return {"status": "ok"}
 
 @app.post("/openenv/step")
 def step(req: StepRequest):
@@ -48,3 +48,7 @@ def step(req: StepRequest):
 @app.post("/openenv/validate")
 def validate():
     return {"status": "ok"}
+
+@app.get("/")
+def home():
+    return {"msg": "API running"}
