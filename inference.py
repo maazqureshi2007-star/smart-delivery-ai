@@ -1,5 +1,8 @@
+from fastapi import FastAPI
 import math
 import random
+
+app = FastAPI()
 
 random.seed(42)
 
@@ -11,7 +14,53 @@ def distance(a, b):
 
 
 # ==============================
-# Total Distance
+# API (for Phase 1)
+# ==============================
+env = {"locations": []}
+
+@app.post("/reset")
+@app.post("/openenv/reset")
+def reset_env(data: dict = None):
+    if data and "locations" in data:
+        env["locations"] = data["locations"]
+    else:
+        env["locations"] = []
+    return {"status": "ok"}
+
+
+@app.post("/step")
+@app.post("/openenv/step")
+def step(data: dict):
+    locations = env["locations"]
+    current = data["current_index"]
+    visited = set(data["visited"])
+
+    best = None
+    best_dist = float("inf")
+
+    for i, loc in enumerate(locations):
+        if i not in visited:
+            d = distance(locations[current], loc)
+            if d < best_dist:
+                best_dist = d
+                best = i
+
+    return {"next_index": best}
+
+
+@app.post("/validate")
+@app.post("/openenv/validate")
+def validate():
+    return {"status": "ok"}
+
+
+@app.get("/")
+def home():
+    return {"msg": "API running"}
+
+
+# ==============================
+# INFERENCE LOGIC (Phase 2)
 # ==============================
 def total_distance(route, locations):
     return sum(
@@ -20,9 +69,6 @@ def total_distance(route, locations):
     )
 
 
-# ==============================
-# Nearest Neighbor from start
-# ==============================
 def nearest_neighbor(locations, start):
     n = len(locations)
     visited = [False] * n
@@ -47,9 +93,6 @@ def nearest_neighbor(locations, start):
     return route
 
 
-# ==============================
-# 2-OPT Optimization
-# ==============================
 def two_opt(route, locations):
     improved = True
     best = route[:]
@@ -73,30 +116,13 @@ def two_opt(route, locations):
     return best
 
 
-# ==============================
-# Multi-start Optimization
-# ==============================
 def solve_route(locations):
     n = len(locations)
     best_route = None
     best_dist = float("inf")
 
-    # Try multiple starting points
     for start in range(min(n, 5)):
         route = nearest_neighbor(locations, start)
-        route = two_opt(route, locations)
-
-        dist = total_distance(route, locations)
-
-        if dist < best_dist:
-            best_dist = dist
-            best_route = route
-
-    # Random small perturbations (extra improvement)
-    for _ in range(3):
-        route = best_route[:]
-        i, j = sorted(random.sample(range(len(route)), 2))
-        route[i:j] = reversed(route[i:j])
         route = two_opt(route, locations)
 
         dist = total_distance(route, locations)
@@ -108,9 +134,6 @@ def solve_route(locations):
     return best_route
 
 
-# ==============================
-# Execute Task
-# ==============================
 def solve_task(task_name, locations):
     print(f"[START] task={task_name}", flush=True)
 
@@ -118,7 +141,6 @@ def solve_task(task_name, locations):
 
     total_reward = 0
     steps = 0
-
     current = route[0]
 
     for next_node in route[1:]:
@@ -135,9 +157,6 @@ def solve_task(task_name, locations):
     print(f"[END] task={task_name} score={score:.6f} steps={steps}", flush=True)
 
 
-# ==============================
-# MAIN
-# ==============================
 def main():
     tasks = {
         "easy": [[0, 0], [1, 2], [3, 1], [4, 4]],
@@ -150,7 +169,7 @@ def main():
 
 
 # ==============================
-# ENTRY POINT (MANDATORY)
+# ENTRY POINT
 # ==============================
 if __name__ == "__main__":
     main()
