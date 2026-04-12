@@ -1,11 +1,11 @@
 import os
 import math
+from fastapi import FastAPI
 from openai import OpenAI
 
 # -------------------------------
-# FASTAPI APP (HF FIX)
+# FASTAPI APP (HF REQUIREMENT)
 # -------------------------------
-from fastapi import FastAPI
 app = FastAPI()
 
 @app.get("/")
@@ -13,19 +13,22 @@ def root():
     return {"status": "running"}
 
 # -------------------------------
-# ENV + DEBUG (VERY IMPORTANT)
+# FORCE LLM CLIENT (NO FALLBACK)
 # -------------------------------
+# IMPORTANT: evaluator injects these
 api_key = os.environ.get("API_KEY") or os.environ.get("OPENAI_API_KEY")
 base_url = os.environ.get("API_BASE_URL")
 
 print(f"[DEBUG] API_KEY exists: {api_key is not None}", flush=True)
 print(f"[DEBUG] API_BASE_URL exists: {base_url is not None}", flush=True)
 
-client = None
-if api_key and base_url:
-    client = OpenAI(base_url=base_url, api_key=api_key)
+# 🚨 FORCE CLIENT (no skipping)
+client = OpenAI(
+    base_url=base_url,
+    api_key=api_key
+)
 
-print(f"[DEBUG] Using LLM client: {client is not None}", flush=True)
+print("[DEBUG] LLM client initialized", flush=True)
 
 # -------------------------------
 # UTILS
@@ -37,14 +40,9 @@ def total_distance(route):
     return sum(distance(route[i], route[i+1]) for i in range(len(route)-1))
 
 # -------------------------------
-# LLM DECISION (DEBUG ADDED)
+# LLM DECISION (MANDATORY CALL)
 # -------------------------------
 def llm_choose_next(current, remaining):
-    if client is None:
-        print("[DEBUG] LLM NOT USED → fallback greedy", flush=True)
-        dists = [distance(current, loc) for loc in remaining]
-        return dists.index(min(dists))
-
     try:
         print("[DEBUG] Calling LLM...", flush=True)
 
@@ -52,7 +50,14 @@ def llm_choose_next(current, remaining):
             model="gpt-4o-mini",
             messages=[{
                 "role": "user",
-                "content": f"Current: {current}, Remaining: {remaining}. Return index only."
+                "content": f"""
+You are solving a delivery routing problem.
+
+Current location: {current}
+Remaining locations: {remaining}
+
+Return ONLY the index (0-based) of the best next location.
+"""
             }],
             temperature=0
         )
@@ -67,13 +72,13 @@ def llm_choose_next(current, remaining):
     except Exception as e:
         print(f"[DEBUG] LLM ERROR: {e}", flush=True)
 
-    # fallback
-    print("[DEBUG] Fallback after LLM failure", flush=True)
+    # fallback (only if LLM crashes)
+    print("[DEBUG] fallback greedy", flush=True)
     dists = [distance(current, loc) for loc in remaining]
     return dists.index(min(dists))
 
 # -------------------------------
-# MAIN
+# MAIN EXECUTION
 # -------------------------------
 def main():
     locations = [(0,0), (2,3), (5,4), (1,7), (6,1)]
