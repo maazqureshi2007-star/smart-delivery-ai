@@ -2,8 +2,13 @@
 name = "smart-delivery-ai"
 version = "0.1.0"
 description = "Smart Delivery API"
+
 dependencies = [
     "fastapi",
     "uvicorn",
-    "pydantic"
+    "pydantic",
+    "openenv>=0.1.13"
 ]
+
+[project.scripts]
+server = "server.app:app"
