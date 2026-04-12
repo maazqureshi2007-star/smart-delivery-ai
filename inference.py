@@ -1,175 +1,130 @@
-from fastapi import FastAPI
+import os
 import math
-import random
+from openai import OpenAI
 
-app = FastAPI()
+# -------------------------------
+# LLM CLIENT (MANDATORY)
+# -------------------------------
+client = OpenAI(
+    base_url=os.environ.get("API_BASE_URL"),
+    api_key=os.environ.get("API_KEY"),
+)
 
-random.seed(42)
-
-# ==============================
-# Distance
-# ==============================
+# -------------------------------
+# UTILS
+# -------------------------------
 def distance(a, b):
     return math.sqrt((a[0] - b[0])**2 + (a[1] - b[1])**2)
 
+def total_distance(route):
+    dist = 0
+    for i in range(len(route) - 1):
+        dist += distance(route[i], route[i+1])
+    return dist
 
-# ==============================
-# API (for Phase 1)
-# ==============================
-env = {"locations": []}
-
-@app.post("/reset")
-@app.post("/openenv/reset")
-def reset_env(data: dict = None):
-    if data and "locations" in data:
-        env["locations"] = data["locations"]
-    else:
-        env["locations"] = []
-    return {"status": "ok"}
-
-
-@app.post("/step")
-@app.post("/openenv/step")
-def step(data: dict):
-    locations = env["locations"]
-    current = data["current_index"]
-    visited = set(data["visited"])
-
-    best = None
-    best_dist = float("inf")
-
-    for i, loc in enumerate(locations):
-        if i not in visited:
-            d = distance(locations[current], loc)
-            if d < best_dist:
-                best_dist = d
-                best = i
-
-    return {"next_index": best}
-
-
-@app.post("/validate")
-@app.post("/openenv/validate")
-def validate():
-    return {"status": "ok"}
-
-
-@app.get("/")
-def home():
-    return {"msg": "API running"}
-
-
-# ==============================
-# INFERENCE LOGIC (Phase 2)
-# ==============================
-def total_distance(route, locations):
-    return sum(
-        distance(locations[route[i]], locations[route[i+1]])
-        for i in range(len(route) - 1)
-    )
-
-
-def nearest_neighbor(locations, start):
-    n = len(locations)
-    visited = [False] * n
-    route = [start]
-    visited[start] = True
-
-    for _ in range(n - 1):
-        last = route[-1]
-        best = None
-        best_dist = float("inf")
-
-        for i in range(n):
-            if not visited[i]:
-                d = distance(locations[last], locations[i])
-                if d < best_dist:
-                    best_dist = d
-                    best = i
-
-        route.append(best)
-        visited[best] = True
-
-    return route
-
-
-def two_opt(route, locations):
-    improved = True
+# -------------------------------
+# 2-OPT OPTIMIZATION
+# -------------------------------
+def two_opt(route):
     best = route[:]
+    improved = True
 
     while improved:
         improved = False
-        for i in range(1, len(route) - 2):
-            for j in range(i + 1, len(route)):
+        for i in range(1, len(best) - 2):
+            for j in range(i + 1, len(best)):
                 if j - i == 1:
                     continue
-
                 new_route = best[:]
-                new_route[i:j] = reversed(new_route[i:j])
+                new_route[i:j] = best[j-1:i-1:-1]
 
-                if total_distance(new_route, locations) < total_distance(best, locations):
+                if total_distance(new_route) < total_distance(best):
                     best = new_route
                     improved = True
-
         route = best
-
     return best
 
+# -------------------------------
+# LLM DECISION
+# -------------------------------
+def llm_choose_next(current, remaining):
+    prompt = f"""
+You are a smart delivery optimizer.
 
-def solve_route(locations):
-    n = len(locations)
-    best_route = None
-    best_dist = float("inf")
+Current location: {current}
+Remaining locations: {remaining}
 
-    for start in range(min(n, 5)):
-        route = nearest_neighbor(locations, start)
-        route = two_opt(route, locations)
+Choose the index (0-based) of the best next location to minimize total travel distance.
+Return ONLY a number.
+"""
 
-        dist = total_distance(route, locations)
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0
+        )
 
-        if dist < best_dist:
-            best_dist = dist
-            best_route = route
+        idx = int(response.choices[0].message.content.strip())
+        if 0 <= idx < len(remaining):
+            return idx
+    except:
+        pass
 
-    return best_route
+    # fallback → greedy nearest
+    dists = [distance(current, loc) for loc in remaining]
+    return dists.index(min(dists))
 
+# -------------------------------
+# MAIN INFERENCE
+# -------------------------------
+def main():
+    # Example environment (replace if dynamic)
+    locations = [
+        (0, 0),
+        (2, 3),
+        (5, 4),
+        (1, 7),
+        (6, 1)
+    ]
 
-def solve_task(task_name, locations):
-    print(f"[START] task={task_name}", flush=True)
+    current = locations[0]
+    remaining = locations[1:]
 
-    route = solve_route(locations)
+    route = [current]
 
+    print("[START] task=delivery", flush=True)
+
+    step = 0
     total_reward = 0
-    steps = 0
-    current = route[0]
 
-    for next_node in route[1:]:
-        reward = -distance(locations[current], locations[next_node])
+    # -------------------------------
+    # STEP LOOP (LLM + Greedy fallback)
+    # -------------------------------
+    while remaining:
+        idx = llm_choose_next(current, remaining)
+        next_loc = remaining.pop(idx)
+
+        reward = -distance(current, next_loc)
         total_reward += reward
 
-        print(f"[STEP] step={steps} reward={reward:.6f}", flush=True)
+        print(f"[STEP] step={step} reward={reward}", flush=True)
 
-        current = next_node
-        steps += 1
+        route.append(next_loc)
+        current = next_loc
+        step += 1
 
-    score = -total_reward
+    # -------------------------------
+    # FINAL OPTIMIZATION (2-opt)
+    # -------------------------------
+    optimized_route = two_opt(route)
+    final_score = -total_distance(optimized_route)
 
-    print(f"[END] task={task_name} score={score:.6f} steps={steps}", flush=True)
-
-
-def main():
-    tasks = {
-        "easy": [[0, 0], [1, 2], [3, 1], [4, 4]],
-        "medium": [[0, 0], [2, 3], [5, 2], [6, 6], [8, 3]],
-        "hard": [[0, 0], [1, 5], [3, 3], [6, 7], [8, 2], [9, 9]]
-    }
-
-    for name, locs in tasks.items():
-        solve_task(name, locs)
+    print(f"[END] task=delivery score={final_score} steps={step}", flush=True)
 
 
-# ==============================
-# ENTRY POINT
-# ==============================
+# -------------------------------
+# ENTRY POINT (VERY IMPORTANT)
+# -------------------------------
 if __name__ == "__main__":
     main()
