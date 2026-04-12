@@ -1,21 +1,33 @@
 import math
 import random
 
+random.seed(42)
+
 # ==============================
-# Distance Function
+# Distance
 # ==============================
 def distance(a, b):
     return math.sqrt((a[0] - b[0])**2 + (a[1] - b[1])**2)
 
 
 # ==============================
-# Nearest Neighbor (Greedy)
+# Total Distance
 # ==============================
-def nearest_neighbor(locations):
+def total_distance(route, locations):
+    return sum(
+        distance(locations[route[i]], locations[route[i+1]])
+        for i in range(len(route) - 1)
+    )
+
+
+# ==============================
+# Nearest Neighbor from start
+# ==============================
+def nearest_neighbor(locations, start):
     n = len(locations)
     visited = [False] * n
-    route = [0]
-    visited[0] = True
+    route = [start]
+    visited[start] = True
 
     for _ in range(n - 1):
         last = route[-1]
@@ -40,6 +52,7 @@ def nearest_neighbor(locations):
 # ==============================
 def two_opt(route, locations):
     improved = True
+    best = route[:]
 
     while improved:
         improved = False
@@ -48,42 +61,61 @@ def two_opt(route, locations):
                 if j - i == 1:
                     continue
 
-                a, b = route[i - 1], route[i]
-                c, d = route[j - 1], route[j % len(route)]
+                new_route = best[:]
+                new_route[i:j] = reversed(new_route[i:j])
 
-                before = distance(locations[a], locations[b]) + distance(locations[c], locations[d])
-                after = distance(locations[a], locations[c]) + distance(locations[b], locations[d])
-
-                if after < before:
-                    route[i:j] = reversed(route[i:j])
+                if total_distance(new_route, locations) < total_distance(best, locations):
+                    best = new_route
                     improved = True
 
-    return route
+        route = best
+
+    return best
 
 
 # ==============================
-# Route Distance
+# Multi-start Optimization
 # ==============================
-def total_distance(route, locations):
-    dist = 0
-    for i in range(len(route) - 1):
-        dist += distance(locations[route[i]], locations[route[i+1]])
-    return dist
+def solve_route(locations):
+    n = len(locations)
+    best_route = None
+    best_dist = float("inf")
+
+    # Try multiple starting points
+    for start in range(min(n, 5)):
+        route = nearest_neighbor(locations, start)
+        route = two_opt(route, locations)
+
+        dist = total_distance(route, locations)
+
+        if dist < best_dist:
+            best_dist = dist
+            best_route = route
+
+    # Random small perturbations (extra improvement)
+    for _ in range(3):
+        route = best_route[:]
+        i, j = sorted(random.sample(range(len(route)), 2))
+        route[i:j] = reversed(route[i:j])
+        route = two_opt(route, locations)
+
+        dist = total_distance(route, locations)
+
+        if dist < best_dist:
+            best_dist = dist
+            best_route = route
+
+    return best_route
 
 
 # ==============================
-# Solve Task
+# Execute Task
 # ==============================
 def solve_task(task_name, locations):
     print(f"[START] task={task_name}", flush=True)
 
-    # Step 1: Greedy
-    route = nearest_neighbor(locations)
+    route = solve_route(locations)
 
-    # Step 2: Improve with 2-opt
-    route = two_opt(route, locations)
-
-    visited = set([route[0]])
     total_reward = 0
     steps = 0
 
@@ -96,7 +128,6 @@ def solve_task(task_name, locations):
         print(f"[STEP] step={steps} reward={reward:.6f}", flush=True)
 
         current = next_node
-        visited.add(current)
         steps += 1
 
     score = -total_reward
@@ -105,10 +136,9 @@ def solve_task(task_name, locations):
 
 
 # ==============================
-# MAIN FUNCTION (CRITICAL)
+# MAIN
 # ==============================
 def main():
-    # 3 tasks (required by OpenEnv)
     tasks = {
         "easy": [[0, 0], [1, 2], [3, 1], [4, 4]],
         "medium": [[0, 0], [2, 3], [5, 2], [6, 6], [8, 3]],
@@ -120,7 +150,7 @@ def main():
 
 
 # ==============================
-# ENTRY POINT (VERY IMPORTANT)
+# ENTRY POINT (MANDATORY)
 # ==============================
 if __name__ == "__main__":
     main()
