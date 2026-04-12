@@ -1,15 +1,10 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 import math
 
 app = FastAPI()
 
-<<<<<<< HEAD
-# ------------------ MODELS ------------------
-
-=======
->>>>>>> a96bbb8 (final fix - add reset route)
 class ResetRequest(BaseModel):
     locations: List[List[float]]
 
@@ -17,46 +12,20 @@ class StepRequest(BaseModel):
     current_index: int
     visited: List[int]
 
-<<<<<<< HEAD
-# ------------------ MEMORY ------------------
-
-=======
->>>>>>> a96bbb8 (final fix - add reset route)
 env = {
     "locations": []
 }
 
-<<<<<<< HEAD
-# ------------------ RESET ------------------
-
-=======
-# 🔥 SUPPORT BOTH ROUTES
+# ✅ FIXED RESET (handles empty body)
 @app.post("/reset")
->>>>>>> a96bbb8 (final fix - add reset route)
 @app.post("/openenv/reset")
-def reset_env(req: ResetRequest):
-    env["locations"] = req.locations
+def reset_env(req: Optional[ResetRequest] = None):
+    if req and req.locations:
+        env["locations"] = req.locations
+    else:
+        env["locations"] = []  # default safe fallback
     return {"status": "ok"}
 
-<<<<<<< HEAD
-# ------------------ STEP ------------------
-
-@app.post("/openenv/step")
-def step(req: StepRequest):
-    locations = env.get("locations", [])
-
-    # SAFETY: empty locations
-    if not locations:
-        return {"next_index": 0}
-
-    # SAFETY: invalid current index
-    if req.current_index >= len(locations):
-        return {"next_index": 0}
-
-    visited = set(req.visited)
-    current = req.current_index
-
-=======
 
 @app.post("/step")
 @app.post("/openenv/step")
@@ -65,7 +34,6 @@ def step(req: StepRequest):
     visited = set(req.visited)
 
     current = req.current_index
->>>>>>> a96bbb8 (final fix - add reset route)
     best = current
     best_dist = float("inf")
 
@@ -84,21 +52,12 @@ def step(req: StepRequest):
 
     return {"next_index": best}
 
-<<<<<<< HEAD
-# ------------------ VALIDATE ------------------
-
-=======
 
 @app.post("/validate")
->>>>>>> a96bbb8 (final fix - add reset route)
 @app.post("/openenv/validate")
 def validate():
     return {"status": "ok"}
 
-<<<<<<< HEAD
-# ------------------ ROOT ------------------
-=======
->>>>>>> a96bbb8 (final fix - add reset route)
 
 @app.get("/")
 def home():
