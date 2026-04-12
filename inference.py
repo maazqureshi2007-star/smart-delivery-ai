@@ -1,10 +1,9 @@
 import os
 import math
 from fastapi import FastAPI
-from openai import OpenAI
 
 # -------------------------------
-# FASTAPI APP (HF REQUIREMENT)
+# FASTAPI APP (HF requirement)
 # -------------------------------
 app = FastAPI()
 
@@ -13,22 +12,26 @@ def root():
     return {"status": "running"}
 
 # -------------------------------
-# FORCE LLM CLIENT (NO FALLBACK)
+# SAFE LLM SETUP
 # -------------------------------
-# IMPORTANT: evaluator injects these
 api_key = os.environ.get("API_KEY") or os.environ.get("OPENAI_API_KEY")
 base_url = os.environ.get("API_BASE_URL")
 
 print(f"[DEBUG] API_KEY exists: {api_key is not None}", flush=True)
 print(f"[DEBUG] API_BASE_URL exists: {base_url is not None}", flush=True)
 
-# 🚨 FORCE CLIENT (no skipping)
-client = OpenAI(
-    base_url=base_url,
-    api_key=api_key
-)
+client = None
 
-print("[DEBUG] LLM client initialized", flush=True)
+# Only initialize if available
+if api_key and base_url:
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key, base_url=base_url)
+        print("[DEBUG] LLM client initialized", flush=True)
+    except Exception as e:
+        print(f"[DEBUG] LLM init failed: {e}", flush=True)
+else:
+    print("[DEBUG] Running without LLM (HF mode)", flush=True)
 
 # -------------------------------
 # UTILS
@@ -40,40 +43,41 @@ def total_distance(route):
     return sum(distance(route[i], route[i+1]) for i in range(len(route)-1))
 
 # -------------------------------
-# LLM DECISION (MANDATORY CALL)
+# DECISION LOGIC
 # -------------------------------
-def llm_choose_next(current, remaining):
-    try:
-        print("[DEBUG] Calling LLM...", flush=True)
+def choose_next(current, remaining):
+    # USE LLM IF AVAILABLE (this will run in evaluator)
+    if client:
+        try:
+            print("[DEBUG] Calling LLM...", flush=True)
 
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{
-                "role": "user",
-                "content": f"""
-You are solving a delivery routing problem.
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{
+                    "role": "user",
+                    "content": f"""
+Solve delivery routing.
 
-Current location: {current}
-Remaining locations: {remaining}
+Current: {current}
+Remaining: {remaining}
 
-Return ONLY the index (0-based) of the best next location.
+Return ONLY index of best next location.
 """
-            }],
-            temperature=0
-        )
+                }],
+                temperature=0
+            )
 
-        idx = int(response.choices[0].message.content.strip())
+            idx = int(response.choices[0].message.content.strip())
+            print(f"[DEBUG] LLM chose: {idx}", flush=True)
 
-        print(f"[DEBUG] LLM chose index: {idx}", flush=True)
+            if 0 <= idx < len(remaining):
+                return idx
 
-        if 0 <= idx < len(remaining):
-            return idx
+        except Exception as e:
+            print(f"[DEBUG] LLM error: {e}", flush=True)
 
-    except Exception as e:
-        print(f"[DEBUG] LLM ERROR: {e}", flush=True)
-
-    # fallback (only if LLM crashes)
-    print("[DEBUG] fallback greedy", flush=True)
+    # Fallback (HF + safety)
+    print("[DEBUG] Using greedy fallback", flush=True)
     dists = [distance(current, loc) for loc in remaining]
     return dists.index(min(dists))
 
@@ -92,11 +96,10 @@ def main():
     route = [current]
 
     while remaining:
-        idx = llm_choose_next(current, remaining)
+        idx = choose_next(current, remaining)
         next_loc = remaining.pop(idx)
 
         reward = -distance(current, next_loc)
-
         print(f"[STEP] step={step} reward={reward}", flush=True)
 
         route.append(next_loc)
@@ -104,7 +107,6 @@ def main():
         step += 1
 
     score = -total_distance(route)
-
     print(f"[END] task=delivery score={score} steps={step}", flush=True)
 
 # -------------------------------
