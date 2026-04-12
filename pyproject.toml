@@ -1,0 +1,9 @@
+[project]
+name = "smart-delivery-ai"
+version = "0.1.0"
+description = "Smart Delivery API"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "pydantic"
+]
